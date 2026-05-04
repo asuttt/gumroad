@@ -130,6 +130,8 @@ class Uploader implements DirectUploadDelegate {
 export const DescriptionEditor = ({
   id,
   initialDescription,
+  resetContent,
+  resetContentKey,
   onChange,
   publicFiles,
   updatePublicFiles,
@@ -138,6 +140,8 @@ export const DescriptionEditor = ({
 }: {
   id: string;
   initialDescription: string;
+  resetContent?: string | null;
+  resetContentKey?: number;
   onChange: (description: string) => void;
   publicFiles: PublicFileWithStatus[];
   updatePublicFiles: (updater: (prev: PublicFileWithStatus[]) => void) => void;
@@ -162,6 +166,11 @@ export const DescriptionEditor = ({
     },
     extensions: [PublicFileEmbed, MoveNode],
   });
+  React.useEffect(() => {
+    if (!editor || resetContent == null || resetContentKey == null || resetContentKey === 0) return;
+
+    editor.commands.setContent(resetContent, true);
+  }, [editor, resetContent, resetContentKey]);
   const [activeUploaders, setActiveUploaders] = React.useState<Map<string, Uploader>>(new Map());
   const deleteActiveUploader = (id: string) =>
     setActiveUploaders((prev) => {

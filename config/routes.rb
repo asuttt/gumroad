@@ -1003,6 +1003,7 @@ Rails.application.routes.draw do
         end
 
         resources :ai_product_details_generations, only: [:create]
+        resources :ai_product_page_drafts, only: [:create]
       end
     end
 

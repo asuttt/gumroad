@@ -5,6 +5,7 @@ class Ai::ProductDetailsGeneratorService
   class InvalidPromptError < StandardError; end
 
   PRODUCT_DETAILS_GENERATION_TIMEOUT_IN_SECONDS = 30
+  PRODUCT_PAGE_DRAFT_GENERATION_TIMEOUT_IN_SECONDS = 45
   RICH_CONTENT_PAGES_GENERATION_TIMEOUT_IN_SECONDS = 90
   COVER_IMAGE_GENERATION_TIMEOUT_IN_SECONDS = 90
 
@@ -86,6 +87,81 @@ class Ai::ProductDetailsGeneratorService
     end
 
     result.merge(duration_in_seconds: duration)
+  end
+
+  def generate_product_page_draft(product:, quiz:)
+    product = product.to_h.symbolize_keys
+    quiz = quiz.to_h.symbolize_keys
+
+    result, duration = with_retries(operation: "Generate product page draft", context: product[:name] || quiz[:business_summary]) do
+      response = openai_client(PRODUCT_PAGE_DRAFT_GENERATION_TIMEOUT_IN_SECONDS).chat(
+        parameters: {
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: %Q{
+                You help Gumroad creators build a complete product page experience.
+                Use the supplied JSON context to write a concise, practical draft that feels useful to a creator.
+
+                Return JSON only in this format:
+                {
+                  "product": {
+                    "title": "Short, natural title",
+                    "description": "Safe HTML using only <p>, <ul>, <ol>, <li>, <h2>, <h3>, <h4>, <strong>, and <em>",
+                    "bullets": ["Short benefit", "Short benefit"],
+                    "priceSuggestion": "Consider $29-$99"
+                  },
+                  "content": {
+                    "outline": "One-sentence outline for the content page",
+                    "sectionIdeas": ["Section 1", "Section 2", "Section 3"],
+                    "pages": [
+                      {
+                        "id": "page-id",
+                        "title": "Start here",
+                        "description": {
+                          "type": "doc",
+                          "content": [
+                            { "type": "paragraph", "content": [ { "type": "text", "text": "Short page copy" } ] }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "receipt": {
+                    "buttonText": "View content",
+                    "customMessage": "Short buyer-friendly receipt copy"
+                  },
+                  "rationale": "One or two plain-language sentences explaining why this draft works",
+                  "missingInfo": ["Optional follow-up prompt"]
+                }
+
+                Keep the response short, specific, and aligned to the seller's audience and offer. The content pages should be simple and ready to preview. The receipt copy should feel helpful, not technical.
+              }.split("\n").map(&:strip).join("\n")
+            },
+            {
+              role: "user",
+              content: {
+                product:,
+                quiz:,
+                current_content_section_titles: Array(product[:rich_content_section_titles]),
+                current_receipt_button_text: product[:receipt_button_text].to_s,
+                current_receipt_custom_message: product[:receipt_custom_message].to_s
+              }.to_json
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.5
+        }
+      )
+
+      content = response.dig("choices", 0, "message", "content")
+      raise "Failed to generate product page draft - no content returned" if content.blank?
+
+      JSON.parse(content, symbolize_names: true)
+    end
+
+    normalize_product_page_draft(result, product:, quiz:).merge(duration_in_seconds: duration)
   end
 
   # @param product_name [String] The product name
@@ -214,5 +290,78 @@ class Ai::ProductDetailsGeneratorService
           raise MaxRetriesExceededError, "Failed to perform '#{operation}' after #{max_tries} attempts: #{e.message}"
         end
       end
+    end
+
+    def normalize_product_page_draft(result, product:, quiz:)
+      current_content_sections = Array(product[:rich_content_section_titles]).map { |value| value.to_s.strip }.reject(&:blank?)
+      current_content_sections = ["No existing content yet, so the agent would start a first draft outline"] if current_content_sections.empty?
+
+      content = value_for(result, :content) || {}
+      product_result = value_for(result, :product) || {}
+      receipt = value_for(result, :receipt) || {}
+
+      pages = Array(value_for(content, :pages)).first(3).map.with_index do |page, index|
+        normalize_draft_page(page, index)
+      end
+
+      {
+        product: {
+          title: value_for(product_result, :title).presence || product[:name].to_s.presence || "Your product",
+          description: value_for(product_result, :description).presence || "<p>Built for your buyers.</p>",
+          bullets: Array(value_for(product_result, :bullets)).map(&:to_s).map(&:strip).reject(&:blank?),
+          priceSuggestion: value_for(product_result, :priceSuggestion).presence || "Consider $29-$79"
+        },
+        content: {
+          outline: value_for(content, :outline).presence || "A lightweight structure that keeps the buying journey simple",
+          sectionIdeas: Array(value_for(content, :sectionIdeas)).map(&:to_s).map(&:strip).reject(&:blank?),
+          existingSections: current_content_sections,
+          pages: pages
+        },
+        receipt: {
+          buttonText: truncate_string(value_for(receipt, :buttonText).presence || "View content", 26),
+          customMessage: value_for(receipt, :customMessage).presence || "Thanks for buying. Start with the first step inside."
+        },
+        rationale: value_for(result, :rationale).presence || "This draft makes the offer easier to scan and connects the product, content, and receipt flow for the buyer.",
+        missingInfo: Array(value_for(result, :missingInfo)).map(&:to_s).map(&:strip).reject(&:blank?)
+      }
+    end
+
+    def normalize_draft_page(page, index)
+      page = page.to_h.symbolize_keys
+      description = value_for(page, :description)
+
+      {
+        id: value_for(page, :id).presence || SecureRandom.uuid,
+        title: value_for(page, :title).presence || "Page #{index + 1}",
+        description: normalize_draft_page_description(description, value_for(page, :title).presence || "Page #{index + 1}"),
+        updated_at: value_for(page, :updated_at).presence || Time.current.iso8601
+      }
+    end
+
+    def normalize_draft_page_description(description, fallback_title)
+      return description if description.is_a?(Hash)
+
+      text = description.to_s.strip
+      text = "#{fallback_title} content" if text.blank?
+
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: text }
+            ]
+          }
+        ]
+      }
+    end
+
+    def value_for(hash, key)
+      hash[key] || hash[key.to_s]
+    end
+
+    def truncate_string(value, max_length)
+      value.length > max_length ? "#{value.slice(0, max_length).rstrip}…" : value
     end
 end

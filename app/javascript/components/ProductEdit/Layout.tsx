@@ -126,6 +126,7 @@ export const Layout = ({
   preview,
   isLoading = false,
   headerActions,
+  topActions,
   previewScaleFactor = 0.4,
   showBorder = true,
   showNavigationButton = true,
@@ -134,6 +135,7 @@ export const Layout = ({
   preview?: React.ReactNode;
   isLoading?: boolean;
   headerActions?: React.ReactNode;
+  topActions?: React.ReactNode;
   previewScaleFactor?: number;
   showBorder?: boolean;
   showNavigationButton?: boolean;
@@ -252,6 +254,7 @@ export const Layout = ({
               <Button disabled={isBusy} onClick={() => void setPublished(false)}>
                 {isPublishing ? "Unpublishing..." : "Unpublish"}
               </Button>
+              {topActions}
               {saveButton}
               <CopyToClipboard text={url} copyTooltip="Copy product URL">
                 <Button size="icon">
@@ -265,15 +268,19 @@ export const Layout = ({
               </CopyToClipboard>
             </>
           ) : tab === "product" && !isCoffee ? (
-            <Button
-              color="primary"
-              disabled={isBusy}
-              onClick={() => void save().then(() => navigate.current(`${rootPath}/content`))}
-            >
-              {saving ? "Saving changes..." : "Save and continue"}
-            </Button>
+            <>
+              <Button
+                color="primary"
+                disabled={isBusy}
+                onClick={() => void save().then(() => navigate.current(`${rootPath}/content`))}
+              >
+                {saving ? "Saving changes..." : "Save and continue"}
+              </Button>
+              {topActions}
+            </>
           ) : (
             <>
+              {topActions}
               {saveButton}
               <WithTooltip tip={saveButtonTooltip}>
                 <Button color="accent" disabled={isBusy} onClick={() => void setPublished(true)}>
