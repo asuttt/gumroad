@@ -195,7 +195,9 @@ export const ProductEditContext = React.createContext<{
   s3Url: string;
   availableCountries: ShippingCountry[];
   saving: boolean;
-  save: () => Promise<void>;
+  save: (productOverride?: Product) => Promise<void>;
+  descriptionResetKey: number;
+  setDescriptionResetKey: React.Dispatch<React.SetStateAction<number>>;
   googleClientId: string;
   googleCalendarEnabled: boolean;
   seller_refund_policy_enabled: boolean;

@@ -24,6 +24,7 @@ import { Tab, Tabs } from "$app/components/ui/Tabs";
 import { useRefToLatest } from "$app/components/useRefToLatest";
 import { WithTooltip } from "$app/components/WithTooltip";
 
+import { AIProductPageAssistant } from "./ProductTab/AIProductPageAssistant";
 import { FileEntry, useProductEditContext } from "./state";
 
 export const useProductUrl = (params = {}) => {
@@ -239,6 +240,7 @@ export const Layout = ({
   };
 
   const isCoffee = product.native_type === "coffee";
+  const aiAssistant = <AIProductPageAssistant />;
 
   return (
     <>
@@ -254,6 +256,7 @@ export const Layout = ({
               <Button disabled={isBusy} onClick={() => void setPublished(false)}>
                 {isPublishing ? "Unpublishing..." : "Unpublish"}
               </Button>
+              {aiAssistant}
               {topActions}
               {saveButton}
               <CopyToClipboard text={url} copyTooltip="Copy product URL">
@@ -269,6 +272,7 @@ export const Layout = ({
             </>
           ) : tab === "product" && !isCoffee ? (
             <>
+              {aiAssistant}
               <Button
                 color="primary"
                 disabled={isBusy}
@@ -280,6 +284,7 @@ export const Layout = ({
             </>
           ) : (
             <>
+              {aiAssistant}
               {topActions}
               {saveButton}
               <WithTooltip tip={saveButtonTooltip}>

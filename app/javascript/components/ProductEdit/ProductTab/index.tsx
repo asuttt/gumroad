@@ -1,7 +1,6 @@
 import { Sparkle } from "@boxicons/react";
 import * as React from "react";
 
-import { saveProduct } from "$app/data/product_edit";
 import { COFFEE_CUSTOM_BUTTON_TEXT_OPTIONS, CUSTOM_BUTTON_TEXT_OPTIONS } from "$app/parsers/product";
 import { currencyCodeList } from "$app/utils/currency";
 import { recurrenceIds, recurrenceLabels } from "$app/utils/recurringPricing";
@@ -36,7 +35,6 @@ import { TiersEditor } from "$app/components/ProductEdit/ProductTab/TiersEditor"
 import { VersionsEditor } from "$app/components/ProductEdit/ProductTab/VersionsEditor";
 import { RefundPolicySelector } from "$app/components/ProductEdit/RefundPolicy";
 import { useProductEditContext } from "$app/components/ProductEdit/state";
-import { showAlert } from "$app/components/server-components/Alert";
 import { ToggleSettingRow } from "$app/components/SettingRow";
 import { TypeSafeOptionSelect } from "$app/components/TypeSafeOptionSelect";
 import { Alert } from "$app/components/ui/Alert";
@@ -45,8 +43,6 @@ import { Input } from "$app/components/ui/Input";
 import { Label } from "$app/components/ui/Label";
 import { Switch } from "$app/components/ui/Switch";
 import { Textarea } from "$app/components/ui/Textarea";
-
-import { AIProductPageAssistant, type BuildWithAIDraft } from "./AIProductPageAssistant";
 
 export const ProductTab = () => {
   const uid = React.useId();
@@ -67,12 +63,12 @@ export const ProductTab = () => {
     seller_refund_policy_enabled,
     cancellationDiscountsEnabled,
     aiGenerated,
+    descriptionResetKey,
   } = useProductEditContext();
   const [initialProduct] = React.useState(product);
 
   const [thumbnail, setThumbnail] = React.useState(initialThumbnail);
   const [showAiNotification, setShowAiNotification] = React.useState(aiGenerated);
-  const [descriptionResetKey, setDescriptionResetKey] = React.useState(0);
 
   const { isUploading, setImagesUploading } = useImageUpload();
 
@@ -81,38 +77,11 @@ export const ProductTab = () => {
   const isCoffee = product.native_type === "coffee";
 
   const url = useProductUrl();
-  const applyAiSuggestion = (draft: BuildWithAIDraft) => {
-    const contentPages = draft.content.pages.map((page) => ({
-      ...page,
-      description: JSON.parse(JSON.stringify(page.description)),
-    }));
-    const nextProduct: typeof product = {
-      ...product,
-      name: draft.product.title,
-      description: draft.product.description,
-      custom_summary: draft.content.outline,
-      has_same_rich_content_for_all_variants: true,
-      rich_content: contentPages,
-      custom_view_content_button_text: draft.receipt.buttonText,
-      custom_receipt_text: draft.receipt.customMessage,
-    };
-
-    updateProduct(nextProduct);
-    setDescriptionResetKey((value) => value + 1);
-
-    void saveProduct(uniquePermalink, id, nextProduct, currencyType).catch((e) => {
-      showAlert(e instanceof Error ? e.message : "Something went wrong.", "error");
-    });
-  };
 
   if (!currentSeller) return null;
 
   return (
-    <Layout
-      preview={<ProductPreview showRefundPolicyModal={showRefundPolicyPreview} />}
-      isLoading={isUploading}
-      topActions={<AIProductPageAssistant onApply={applyAiSuggestion} />}
-    >
+    <Layout preview={<ProductPreview showRefundPolicyModal={showRefundPolicyPreview} />} isLoading={isUploading}>
       <div className="squished">
         <form>
           <section className="grid gap-8 p-4! md:p-8!">

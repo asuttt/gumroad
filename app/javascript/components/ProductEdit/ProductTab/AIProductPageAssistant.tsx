@@ -7,6 +7,7 @@ import { request } from "$app/utils/request";
 import { Button } from "$app/components/Button";
 import { Modal } from "$app/components/Modal";
 import { useProductEditContext } from "$app/components/ProductEdit/state";
+import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 import { Fieldset, FieldsetDescription, FieldsetTitle } from "$app/components/ui/Fieldset";
@@ -269,7 +270,7 @@ const SectionCard = ({ title, eyebrow, children }: { title: string; eyebrow: str
   </Card>
 );
 
-export const AIProductPageAssistant = ({ onApply }: { onApply: (draft: BuildWithAIDraft) => void }) => {
+export const AIProductPageAssistant = () => {
   const uid = React.useId();
   const [open, setOpen] = React.useState(false);
   const [hasGenerated, setHasGenerated] = React.useState(false);
@@ -286,7 +287,7 @@ export const AIProductPageAssistant = ({ onApply }: { onApply: (draft: BuildWith
   const [deliveryNotes, setDeliveryNotes] = React.useState("");
   const [previewTab, setPreviewTab] = React.useState<"product" | "content" | "receipt">("product");
 
-  const { product } = useProductEditContext();
+  const { product, updateProduct, setDescriptionResetKey, save } = useProductEditContext();
   const isCoffee = product.native_type === "coffee";
   const currentContentSections = React.useMemo(
     () =>
@@ -331,6 +332,38 @@ export const AIProductPageAssistant = ({ onApply }: { onApply: (draft: BuildWith
   );
   const fallbackDraft = React.useMemo(() => buildDraftFromState(generationTick), [buildDraftFromState, generationTick]);
   const draft = generatedDraft ?? fallbackDraft;
+
+  const applyDraft = async () => {
+    const contentPages = draft.content.pages.map((page) => ({
+      ...page,
+      description: JSON.parse(JSON.stringify(page.description)),
+    }));
+    const nextProduct: typeof product = {
+      ...product,
+      name: draft.product.title,
+      description: draft.product.description,
+      custom_summary: draft.content.outline,
+      has_same_rich_content_for_all_variants: true,
+      rich_content: contentPages,
+      custom_view_content_button_text: draft.receipt.buttonText,
+      custom_receipt_text: draft.receipt.customMessage,
+    };
+
+    updateProduct(nextProduct);
+    setDescriptionResetKey((value) => value + 1);
+
+    save(nextProduct)
+      .then(() => {
+        setOpen(false);
+        setHasGenerated(false);
+        setGeneratedDraft(null);
+        setPreviewSource(null);
+        setQuizStep(0);
+      })
+      .catch((e) => {
+        showAlert(e instanceof Error ? e.message : "Something went wrong.", "error");
+      });
+  };
 
   const intakeSteps = [
     {
@@ -719,9 +752,7 @@ export const AIProductPageAssistant = ({ onApply }: { onApply: (draft: BuildWith
                 <Button
                   className="border-black bg-pink text-black hover:bg-pink/90 hover:text-black"
                   onClick={() => {
-                    onApply(draft);
-                    setOpen(false);
-                    setHasGenerated(false);
+                    void applyDraft();
                   }}
                 >
                   Apply to product

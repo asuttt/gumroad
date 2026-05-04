@@ -146,6 +146,7 @@ const ProductEditPage = (props: Props) => {
   const [product, setProduct] = React.useState(props.product);
   const [contentUpdates, setContentUpdates] = React.useState<ContentUpdates>(null);
   const [currencyType, setCurrencyType] = React.useState<CurrencyCode>(props.currency_type);
+  const [descriptionResetKey, setDescriptionResetKey] = React.useState(0);
   const lastSavedProductRef = React.useRef<Product>(structuredClone(props.product));
 
   const updateProduct = (update: Partial<Product> | ((product: Product) => void)) =>
@@ -160,20 +161,20 @@ const ProductEditPage = (props: Props) => {
 
   const [saving, setSaving] = React.useState(false);
   const [imagesUploading, setImagesUploading] = React.useState<Set<File>>(new Set());
-  const save = async () => {
+  const save = async (productToSave = product) => {
     try {
       setSaving(true);
-      const response = await saveProduct(props.unique_permalink, props.id, product, currencyType);
+      const response = await saveProduct(props.unique_permalink, props.id, productToSave, currencyType);
       if (response.warning_message) showAlert(response.warning_message, "warning");
       else {
         const { contentUpdatedVariantIds, sharedContentUpdated } = findUpdatedContent(
-          product,
+          productToSave,
           lastSavedProductRef.current,
         );
         const contentUpdated = sharedContentUpdated || contentUpdatedVariantIds.length > 0;
 
         if (props.successful_sales_count > 0 && contentUpdated) {
-          const uniquePermalinkOrVariantIds = product.has_same_rich_content_for_all_variants
+          const uniquePermalinkOrVariantIds = productToSave.has_same_rich_content_for_all_variants
             ? [props.unique_permalink]
             : contentUpdatedVariantIds;
 
@@ -183,7 +184,7 @@ const ProductEditPage = (props: Props) => {
         } else {
           showAlert("Changes saved!", "success");
         }
-        lastSavedProductRef.current = structuredClone(product);
+        lastSavedProductRef.current = structuredClone(productToSave);
       }
     } catch (e) {
       assertResponseError(e);
@@ -206,9 +207,11 @@ const ProductEditPage = (props: Props) => {
       saving,
       contentUpdates,
       setContentUpdates,
+      descriptionResetKey,
+      setDescriptionResetKey,
       filesById,
     }),
-    [product, updateProduct, existingFiles, setExistingFiles, filesById],
+    [product, updateProduct, existingFiles, setExistingFiles, filesById, descriptionResetKey],
   );
 
   const imageSettings = React.useMemo(
